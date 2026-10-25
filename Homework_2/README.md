@@ -1,130 +1,159 @@
-# Homework 2 - Task 1: Two-LED PWM Fading (ESP32)
+# Homework 2 - Task 2: Two-LED PWM Fading with SSD1306 OLED (ESP32)
 
-Two LEDs fade in and out together using the ESP32's hardware PWM (LEDC). Each LED runs at a **different PWM frequency** (1 kHz and 5 kHz), so the two frequencies can be compared. The circuit was built and tested in Wokwi, with PlatformIO and the Arduino framework.
+This is the completed project. It extends Task 1 by adding an SSD1306 OLED display. Two LEDs fade in and out using ESP32 hardware PWM at two different frequencies, and the OLED shows each LED's **live duty-cycle percentage** and its **configured PWM frequency**.
 
-- **Author:** HADIA IRFAN
+- **Author:** Hadia
 - **Board:** ESP32 DevKit C (Wokwi: `board-esp32-devkit-c-v4`, PlatformIO: `esp32dev`)
+- **Framework:** Arduino (PlatformIO)
+- **Libraries:** Adafruit GFX Library, Adafruit SSD1306
 - **Wokwi project link:** _add your link here_
 
 ## Project files
 
-| File | Purpose |
-|------|---------|
-| `src/main.cpp` | Source code |
-| `diagram.json` | Wokwi circuit configuration |
-| `wokwi.toml` | Wokwi firmware paths |
-| `platformio.ini` | PlatformIO build settings |
+```
+Task2_pwm-OLED/
+├── src/
+│   └── main.cpp        # final source code
+├── diagram.json        # Wokwi circuit configuration (with OLED)
+├── wokwi.toml          # Wokwi firmware paths
+├── platformio.ini      # PlatformIO settings and library dependencies
+├── images/             # screenshots and hardware photographs
+└── README.md
+```
 
 ## Components
 
-- 1 x ESP32 DevKit C
-- 1 x red LED (LED 1)
-- 1 x blue LED (LED 2)
-- 2 x 220 ohm resistors (one per LED)
+| Qty | Component | Notes |
+|-----|-----------|-------|
+| 1 | ESP32 DevKit C | main board |
+| 1 | Red LED | LED 1 |
+| 1 | Blue LED | LED 2 |
+| 2 | 220 ohm resistor | current limiting, one per LED |
+| 1 | SSD1306 OLED, 128x64, I2C | address `0x3C` |
 
 ## Wiring
 
-| From | To |
-|------|----|
-| GPIO 18 | Resistor R1 (220 ohm), then red LED anode |
-| Red LED cathode | GND |
-| GPIO 19 | Resistor R2 (220 ohm), then blue LED anode |
-| Blue LED cathode | GND |
+**LEDs**
+
+| ESP32 pin | Connects to |
+|-----------|-------------|
+| GPIO 18 | Red LED anode (LED 1) |
+| Red LED cathode | 220 ohm resistor (R1), then GND |
+| GPIO 19 | Blue LED anode (LED 2) |
+| Blue LED cathode | 220 ohm resistor (R2), then GND |
+
+**OLED (I2C)**
+
+| OLED pin | ESP32 pin |
+|----------|-----------|
+| VCC | 3V3 |
+| GND | GND |
+| SDA | GPIO 21 |
+| SCL | GPIO 22 |
 
 ```
-GPIO18 ---[220R]---|>|(red)---- GND
-GPIO19 ---[220R]---|>|(blue)--- GND
+GPIO18 ---|>|(red)---[220R]--- GND
+GPIO19 ---|>|(blue)--[220R]--- GND
+
+3V3    ---- OLED VCC
+GND    ---- OLED GND
+GPIO21 ---- OLED SDA
+GPIO22 ---- OLED SCL
 ```
 
 ## PWM frequencies
 
-| | LED 1 (red) | LED 2 (blue) |
-|---|---|---|
+| Setting | LED 1 (red) | LED 2 (blue) |
+|---------|-------------|--------------|
 | GPIO pin | 18 | 19 |
 | LEDC channel | 0 | 2 |
-| Frequency | **1000 Hz** | **5000 Hz** |
-| Resolution | 8 bit (0 to 255) | 8 bit (0 to 255) |
+| PWM frequency | **1000 Hz (1 kHz)** | **5000 Hz (5 kHz)** |
+| Resolution | 8 bit | 8 bit |
+| Duty range | 0 to 255 | 0 to 255 |
 
-Channels 0 and 2 are used so each LED has its own LEDC timer. This lets the two LEDs run at different frequencies at the same time.
+Channels 0 and 2 are used so that each LED gets its own LEDC timer. This is what allows the two LEDs to run at different frequencies at the same time.
 
 ## Duty-cycle control
 
-- Duty value `0` means off and `255` means fully on. Percentage = `duty / 255 x 100`.
-- `ledcWrite(channel, duty)` sets the duty cycle.
-- The `loop()` function does two steps forever:
-  1. **Fade in:** duty goes from 0 to 255 in steps of 1, with a 10 ms delay per step (about 2.56 s).
-  2. **Fade out:** duty goes from 255 to 0 in steps of 1, with a 10 ms delay per step (about 2.56 s).
-- Both LEDs get the same duty value, so they fade together. Only their frequencies differ.
-- One full cycle takes about 5.12 s.
+- The duty value (`duty1`, `duty2`) goes from `0` (off) to `255` (fully on).
+- `ledcWrite(channel, duty)` applies the duty value to the PWM channel.
+- In `loop()`:
+  1. **Fade in:** duty rises from 0 to 255 in steps of 1.
+  2. **Fade out:** duty falls from 255 to 0 in steps of 1.
+  3. After every step, the OLED is refreshed and the code waits 10 ms.
+- Both LEDs use the same duty value (`duty2 = duty1`), so they fade together. Only their PWM frequency is different.
+- The percentage shown on the OLED is calculated as `duty * 100 / 255`.
 
-## Serial output
+## OLED output
 
-At start-up the program prints the configured frequencies (115200 baud):
+The display is 128x64 pixels with 1x text size. It is updated by `showOLED()` on every duty step, and shows three lines:
 
 ```
-Dual LED PWM Fade Started
-LED 1 Frequency: 1000.00 Hz
-LED 2 Frequency: 5000.00 Hz
+PWM MONITOR
+LED1: 50% F:1000Hz
+LED2: 50% F:5000Hz
 ```
 
-If PWM setup fails, it prints `ERROR: PWM setup failed.` and stops.
+- The percentage values change live from 0 % to 100 % and back as the LEDs fade.
+- The frequencies stay fixed at 1000 Hz and 5000 Hz.
+- If the OLED is not found at address `0x3C`, the serial monitor prints `OLED initialization failed!` and the program stops.
+
+**Serial monitor at start-up (115200 baud):**
+
+```
+Task 2: Dual LED PWM with OLED
+```
 
 ## How to run
 
-**Wokwi:** open the project link and press the green Play button.
+**Wokwi:** open the project link above and press the green Play button.
 
-**PlatformIO (VS Code):** open the folder, click **Build**, then start the simulation with the Wokwi extension.
+**PlatformIO (VS Code):**
+1. Open the project folder. PlatformIO downloads the two Adafruit libraries automatically from `platformio.ini`.
+2. Click **Build**.
+3. Start the simulation using the Wokwi extension (`diagram.json`), or upload to a real ESP32 board with **Upload**.
 
-## Test notes
 
-Expected behaviour when the simulation runs:
-
-- Both LEDs start off, fade smoothly up to full brightness, then fade smoothly back to off.
-- The cycle repeats continuously.
-- The serial monitor shows 1000 Hz for LED 1 and 5000 Hz for LED 2.
-- No flicker is visible at either frequency.
 ## Test results
 
-**Test setup:** Wokwi simulation, ESP32 DevKit C, red LED on GPIO 18 (1 kHz) and blue LED on GPIO 19 (5 kHz). Serial monitor at 115200 baud.
+**Test setup:** ESP32 DevKit C, red LED on GPIO 18 (1 kHz), blue LED on GPIO 19 (5 kHz), SSD1306 OLED (128x64, I2C address 0x3C) on GPIO 21 (SDA) and GPIO 22 (SCL). Tested first in Wokwi, then on real hardware. Serial monitor at 115200 baud.
 
 **Serial monitor output:**
 
 ```
-Dual LED PWM Fade Started
-LED 1 Frequency: 1000.00 Hz
-LED 2 Frequency: 5000.00 Hz
+Task 2: Dual LED PWM with OLED
 ```
 
-**Fade-in progress (10 ms per step):**
+**OLED readings during the fade-in:**
 
-| Time (approx.) | Duty value | Duty cycle | LED brightness |
-|----------------|-----------|------------|----------------|
-| 0.00 s | 0 | 0 % | off |
-| 0.64 s | 64 | 25 % | dim |
-| 1.28 s | 128 | 50 % | medium |
-| 1.92 s | 192 | 75 % | bright |
-| 2.55 s | 255 | 100 % | full brightness |
+| Duty value | OLED line 2 | OLED line 3 | LED brightness |
+|-----------|-------------|-------------|----------------|
+| 0 | `LED1: 0% F:1000Hz` | `LED2: 0% F:5000Hz` | off |
+| 64 | `LED1: 25% F:1000Hz` | `LED2: 25% F:5000Hz` | dim |
+| 128 | `LED1: 50% F:1000Hz` | `LED2: 50% F:5000Hz` | medium |
+| 192 | `LED1: 75% F:1000Hz` | `LED2: 75% F:5000Hz` | bright |
+| 255 | `LED1: 100% F:1000Hz` | `LED2: 100% F:5000Hz` | full brightness |
 
-After reaching 255, the duty value counts back down to 0 over another 2.55 s. One full fade-in and fade-out cycle takes about 5.12 s, then it repeats.
-
-**Frequency comparison:**
-
-| | LED 1 (red) | LED 2 (blue) |
-|---|---|---|
-| Frequency | 1000 Hz | 5000 Hz |
-| PWM period | 1.0 ms | 0.2 ms |
-| Duty step size (8-bit) | about 3.9 microseconds | about 0.78 microseconds |
+The first OLED line always shows `PWM MONITOR`. During the fade-out the percentages count back down from 100 % to 0 %, and the frequencies stay at 1000 Hz and 5000 Hz.
 
 **Summary of results:**
 
-| Test | Result |
-|------|--------|
-| PWM setup succeeds for both channels | Pass (no error message printed) |
-| Serial monitor shows 1000 Hz and 5000 Hz | Pass |
-| Both LEDs fade in from off to full brightness | Pass |
-| Both LEDs fade out from full brightness to off | Pass |
-| Both LEDs fade together (same duty value) | Pass |
-| Cycle repeats continuously | Pass |
-| Visible flicker at 1 kHz or 5 kHz | None, both are far above what the eye can see |
+| Test | Wokwi | Hardware |
+|------|-------|----------|
+| OLED initializes and shows "PWM MONITOR" | Pass | Pass |
+| LED 1 fades in and out at 1000 Hz | Pass | Pass |
+| LED 2 fades in and out at 5000 Hz | Pass | Pass |
+| OLED percentage follows LED brightness (0 % to 100 % and back) | Pass | Pass |
+| OLED shows F:1000Hz and F:5000Hz | Pass | Pass |
+| Both LEDs fade together | Pass | Pass |
+| Cycle repeats continuously | Pass | Pass |
+| Visible flicker at 1 kHz or 5 kHz | None | None |
+| No "OLED initialization failed!" message | Pass | Pass |
 
-**Conclusion:** Both LEDs faded smoothly with 256 brightness levels. The 1 kHz and 5 kHz frequencies looked the same to the eye, because both are well above the flicker threshold. The difference between them only matters for things like measuring the signal with an oscilloscope, or noise in other circuits.
+**Fade speed:** The code waits 10 ms per step, and 512 steps make one cycle (5.12 s if there were no other delay). The OLED is redrawn on every step, and each redraw takes extra time, so the real cycle is longer, roughly 15 to 20 seconds.
+
+## Wokwi vs hardware comparison
+
+The Wokwi simulation and the real hardware gave the same results. In both, the red and blue LEDs faded in and out together, and the OLED showed the live duty-cycle percentage and the fixed frequencies (1000 Hz and 5000 Hz) correctly. No flicker could be seen at either frequency.
+
+The small differences were in the physical details. On the real board, the LED brightness looked slightly different between the red and blue LEDs, because the two colors have different forward voltages and brightness. The OLED text on hardware was small and needed a close look, while in Wokwi it was easy to read on screen. The fade speed was slower than the 10 ms per step in the code in both cases, because redrawing the OLED on every step adds delay. Overall, Wokwi was a reliable way to test the code before wiring the real circuit.

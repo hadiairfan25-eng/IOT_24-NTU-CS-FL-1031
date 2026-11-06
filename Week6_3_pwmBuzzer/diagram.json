@@ -1,0 +1,27 @@
+
+{
+  "version": 1,
+  "author": "Hadia",
+  "editor": "wokwi",
+  "parts": [
+    {
+      "type": "board-esp32-devkit-c-v4",
+      "id": "esp",
+      "top": 0,
+      "left": 0,
+      "attrs": {}
+    },
+    {
+      "type": "wokwi-buzzer",
+      "id": "buzzer",
+      "top": -10,
+      "left": 200,
+      "attrs": {}
+    }
+  ],
+  "connections": [
+    ["esp:GND.1", "buzzer:GND", "black", []],
+    ["esp:18", "buzzer:2", "blue", []]
+  ],
+  "dependencies": {}
+}
